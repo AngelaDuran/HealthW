@@ -3,11 +3,27 @@
 //  Shared
 //
 //  Created by Angela on 2/21/24.
+//  NOTES: Initial User Interface
 //
 
 import SwiftUI
 import CoreData
+import HealthKit
 
+
+struct ContentView:View {
+    var body: some View {
+        Text("Hello, World").padding()
+    }
+}
+
+struct ContentView_Preview: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
+}
+
+/*
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
 
@@ -88,3 +104,4 @@ struct ContentView_Previews: PreviewProvider {
         ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
     }
 }
+*/
