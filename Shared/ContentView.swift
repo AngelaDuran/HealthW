@@ -7,17 +7,91 @@
 //
 
 import SwiftUI
-import CoreData
 import HealthKit
 
-
-struct ContentView:View {
+struct ContentView: View {
+    @State private var activeEnergy: Double = 0
+    @State private var exerciseTime: TimeInterval = 0
+    @State private var standHours: Int = 0
+    
+    let healthStore = HKHealthStore()
+    
     var body: some View {
-        Text("Hello, World").padding()
+        VStack {
+            Text("Active Energy: \(activeEnergy, specifier: "%.2f") kcal")
+            Text("Exercise Time: \(exerciseTime, specifier: "%.2f") seconds")
+            Text("Stand Hours: \(standHours)")
+        }
+        .padding()
+        .onAppear {
+            requestAuthorization()
+        }
+    }
+    
+    private func requestAuthorization() {
+        let typesToRead: Set<HKObjectType> = [
+            HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKObjectType.quantityType(forIdentifier: .appleExerciseTime)!,
+            HKObjectType.categoryType(forIdentifier: .appleStandHour)!
+        ]
+        
+        healthStore.requestAuthorization(toShare: nil, read: typesToRead) { success, error in
+            if success {
+                fetchRingData()
+            } else {
+                print("HealthKit authorization denied.")
+            }
+        }
+    }
+    
+    private func fetchRingData() {
+        let calendar = Calendar.current
+        let now = Date()
+        let startOfDay = calendar.startOfDay(for: now)
+        
+        let activeEnergyType = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!
+        let exerciseTimeType = HKObjectType.quantityType(forIdentifier: .appleExerciseTime)!
+        let standHourType = HKObjectType.categoryType(forIdentifier: .appleStandHour)!
+        
+        let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now, options: .strictStartDate)
+        
+        let activeEnergyQuery = HKStatisticsQuery(quantityType: activeEnergyType, quantitySamplePredicate: predicate, options: .cumulativeSum) { query, result, error in
+            guard let result = result, let sum = result.sumQuantity() else {
+                print("Failed to fetch active energy data: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            DispatchQueue.main.async {
+                activeEnergy = sum.doubleValue(for: HKUnit.kilocalorie())
+            }
+        }
+        
+        let exerciseTimeQuery = HKStatisticsQuery(quantityType: exerciseTimeType, quantitySamplePredicate: predicate, options: .cumulativeSum) { query, result, error in
+            guard let result = result, let sum = result.sumQuantity() else {
+                print("Failed to fetch exercise time data: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            DispatchQueue.main.async {
+                exerciseTime = sum.doubleValue(for: HKUnit.second())
+            }
+        }
+        
+        let standHourQuery = HKStatisticsQuery(categoryType: standHourType, predicate: predicate, options: .cumulativeSum) { query, result, error in
+            guard let result = result else {
+                print("Failed to fetch stand hour data: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            DispatchQueue.main.async {
+                standHours = Int(result.sumQuantity()?.doubleValue(for: .count()) ?? 0)
+            }
+        }
+        
+        healthStore.execute(activeEnergyQuery)
+        healthStore.execute(exerciseTimeQuery)
+        healthStore.execute(standHourQuery)
     }
 }
 
-struct ContentView_Preview: PreviewProvider {
+struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
     }
